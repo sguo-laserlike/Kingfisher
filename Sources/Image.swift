@@ -44,6 +44,7 @@ import Accelerate
 import CoreImage
 #endif
 
+
 // MARK: - Image Properties
 extension Kingfisher where Base: Image {
     fileprivate(set) var animatedImageData: Data? {
@@ -973,3 +974,103 @@ extension Kingfisher where Base: Image {
         return image(withRoundRadius: radius, fit: size)
     }
 }
+
+public struct FaceDetection: ImageProcessor {
+    public let identifier: String
+
+    /// Target size of output image should be.
+    public let targetSize: CGSize
+
+    /// Initialize a `ResizingImageProcessor`
+    ///
+    /// - parameter targetSize: Target size of output image should be.
+    ///
+    /// - returns: An initialized `ResizingImageProcessor`.
+    public init(targetSize: CGSize) {
+        self.targetSize = targetSize
+        self.identifier = "com.laserlike.FaceDetection(\(targetSize))"
+    }
+
+    // Convert input data/image to target image and return it.
+    public func process(item: ImageProcessItem, options: KingfisherOptionsInfo) -> Image? {
+        switch item {
+        case .image(let image):
+            print("already an image")
+            return image
+        case .data(let data):
+            if data.kf.imageFormat == .GIF {
+                return Kingfisher<Image>.image(data: data, scale: 1.0, preloadAllGIFData: true)
+            } else {
+                return Image(data: data)?.faceDetectionImageScaledToFillSize(targetSize)
+            }
+        }
+    }
+}
+
+extension UIImage {
+    fileprivate func detectFaceRects() -> Array<Any> {
+        let faceDetector: CIDetector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: [CIDetectorAccuracy: CIDetectorAccuracyHigh])!
+        if let ciImage = UIKit.CIImage(image: self) {
+            let features = faceDetector.features(in: ciImage)
+            var returnBounds: Array<Any> = []
+
+            for (_,element) in features.enumerated() {
+                returnBounds.append(NSValue(cgRect: element.bounds))
+            }
+            return returnBounds
+        }
+        return []
+    }
+
+    public func faceDetectionImageScaledToFillSize(_ size: CGSize) -> UIImage {
+        var rect: CGRect = CGRect.zero
+        if self.size.equalTo(size) {
+            return self
+        }
+
+        let aspect = self.size.width / self.size.height
+        if size.width/aspect >= size.height {
+            rect.size = CGSize(width: size.width, height: size.width/aspect)
+        } else {
+            rect.size = CGSize(width: size.height * aspect, height: size.height)
+        }
+
+        rect.origin = CGPoint(x: 0.0, y: 0.0)
+        let xRatio = (rect.size.width) / self.size.width
+        let yRatio = (rect.size.height) / self.size.height
+
+        let faceRects = self.detectFaceRects()
+
+        if faceRects.count > 0 {
+
+            let value: NSValue = faceRects[faceRects.count/2] as! NSValue
+            var faceRect = value.cgRectValue
+            //Change coordinate system
+            faceRect.origin.y = self.size.height - faceRect.origin.y - faceRect.size.height
+
+            var xOffset: CGFloat = max(faceRect.origin.x + faceRect.size.width/2 - size.width/(xRatio*2), 0)
+            var yOffset: CGFloat = max(faceRect.origin.y + faceRect.size.height/2 - size.height/(yRatio*2), 0)
+
+            if (xOffset + size.width/xRatio) > self.size.width {
+                xOffset = self.size.width - size.width/xRatio
+            }
+
+            if (yOffset + size.height/yRatio) > self.size.height {
+                yOffset = self.size.height - size.height/yRatio
+            }
+
+            rect.origin.x = (rect.origin.x) - xOffset * xRatio
+            rect.origin.y = (rect.origin.y) - yOffset * yRatio
+        }
+
+        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
+        self.draw(in: rect)
+        let image: UIImage = UIGraphicsGetImageFromCurrentImageContext()!
+        UIGraphicsEndImageContext()
+        
+        return image;
+    }
+}
+
+
+
