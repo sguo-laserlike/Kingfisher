@@ -995,7 +995,6 @@ public struct FaceDetection: ImageProcessor {
     public func process(item: ImageProcessItem, options: KingfisherOptionsInfo) -> Image? {
         switch item {
         case .image(let image):
-            print("already an image")
             return image
         case .data(let data):
             if data.kf.imageFormat == .GIF {
