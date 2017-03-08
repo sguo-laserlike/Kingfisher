@@ -1064,8 +1064,7 @@ extension UIImage {
             rect.origin.y = (rect.origin.y) - yOffset * yRatio
         } else {
 
-            if self.size.width < self.size.height {
-
+            if size.width/aspect >= size.height {
                 rect.size = CGSize(width: size.width, height: size.width/aspect)
 
                 xRatio = (rect.size.width) / self.size.width
