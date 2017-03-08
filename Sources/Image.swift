@@ -1028,6 +1028,7 @@ extension UIImage {
         }
 
         let aspect = self.size.width / self.size.height
+
         if size.width/aspect >= size.height {
             rect.size = CGSize(width: size.width, height: size.width/aspect)
         } else {
@@ -1035,8 +1036,8 @@ extension UIImage {
         }
 
         rect.origin = CGPoint(x: 0.0, y: 0.0)
-        let xRatio = (rect.size.width) / self.size.width
-        let yRatio = (rect.size.height) / self.size.height
+        var xRatio = (rect.size.width) / self.size.width
+        var yRatio = (rect.size.height) / self.size.height
 
         let faceRects = self.detectFaceRects()
 
@@ -1044,7 +1045,8 @@ extension UIImage {
 
             let value: NSValue = faceRects[faceRects.count/2] as! NSValue
             var faceRect = value.cgRectValue
-            //Change coordinate system
+
+            //Change coordinate system for faces into the image
             faceRect.origin.y = self.size.height - faceRect.origin.y - faceRect.size.height
 
             var xOffset: CGFloat = max(faceRect.origin.x + faceRect.size.width/2 - size.width/(xRatio*2), 0)
@@ -1060,6 +1062,36 @@ extension UIImage {
 
             rect.origin.x = (rect.origin.x) - xOffset * xRatio
             rect.origin.y = (rect.origin.y) - yOffset * yRatio
+        } else {
+
+            if self.size.width < self.size.height {
+
+                rect.size = CGSize(width: size.width, height: size.width/aspect)
+
+                xRatio = (rect.size.width) / self.size.width
+                yRatio = (rect.size.height) / self.size.height
+
+                let x = (self.size.width - size.width)/2
+                let y = (self.size.height - size.height)/2
+
+                //Change coordinate system for centered image
+                var imageRect = CGRect(x: x, y: y, width: size.width, height: size.height)
+                imageRect.origin.y = self.size.height - imageRect.origin.y - imageRect.size.height
+
+                var xOffset: CGFloat = max(imageRect.origin.x + imageRect.size.width/2 - size.width/(xRatio*2), 0)
+                var yOffset: CGFloat = max(imageRect.origin.y + imageRect.size.height/2 - size.height/(yRatio*2), 0)
+
+                if (xOffset + size.width/xRatio) > self.size.width {
+                    xOffset = self.size.width - size.width/xRatio
+                }
+
+                if (yOffset + size.height/yRatio) > self.size.height {
+                    yOffset = self.size.height - size.height/yRatio
+                }
+
+                rect.origin.x = (rect.origin.x) - xOffset * xRatio
+                rect.origin.y = (rect.origin.y) - yOffset * yRatio
+            }
         }
 
         UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
