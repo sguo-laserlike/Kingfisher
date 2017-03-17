@@ -1007,98 +1007,96 @@ public struct FaceDetection: ImageProcessor {
 }
 
 extension UIImage {
-    fileprivate func detectFaceRects() -> Array<Any> {
+    fileprivate func detectFaceRects() -> Array<CGRect> {
         let faceDetector: CIDetector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: [CIDetectorAccuracy: CIDetectorAccuracyHigh])!
         if let ciImage = UIKit.CIImage(image: self) {
             let features = faceDetector.features(in: ciImage)
-            var returnBounds: Array<Any> = []
+            var returnBounds: Array<CGRect> = []
 
             for (_,element) in features.enumerated() {
-                returnBounds.append(NSValue(cgRect: element.bounds))
+                returnBounds.append(element.bounds)
             }
             return returnBounds
         }
         return []
     }
 
-    public func faceDetectionImageScaledToFillSize(_ size: CGSize) -> UIImage {
+    public func faceDetectionImageScaledToFillSize(_ fillSize: CGSize) -> UIImage {
         var rect: CGRect = CGRect.zero
-        if self.size.equalTo(size) {
+
+        if abs(size.height / size.width - fillSize.height / fillSize.width) < 0.05 {
             return self
         }
 
-        let aspect = self.size.width / self.size.height
-
-        if size.width/aspect >= size.height {
-            rect.size = CGSize(width: size.width, height: size.width/aspect)
-        } else {
-            rect.size = CGSize(width: size.height * aspect, height: size.height)
-        }
-
-        rect.origin = CGPoint(x: 0.0, y: 0.0)
-        var xRatio = (rect.size.width) / self.size.width
-        var yRatio = (rect.size.height) / self.size.height
-
         let faceRects = self.detectFaceRects()
 
-        if faceRects.count > 0 {
+        if faceRects.count < 0 {
+            return self
+        }
 
-            let value: NSValue = faceRects[faceRects.count/2] as! NSValue
-            var faceRect = value.cgRectValue
+        var faceRect = rectForAllFaces(faceRects)
 
-            //Change coordinate system for faces into the image
-            faceRect.origin.y = self.size.height - faceRect.origin.y - faceRect.size.height
-
-            var xOffset: CGFloat = max(faceRect.origin.x + faceRect.size.width/2 - size.width/(xRatio*2), 0)
-            var yOffset: CGFloat = max(faceRect.origin.y + faceRect.size.height/2 - size.height/(yRatio*2), 0)
-
-            if (xOffset + size.width/xRatio) > self.size.width {
-                xOffset = self.size.width - size.width/xRatio
+        if size.height / size.width > fillSize.height / fillSize.width {
+            // portrait mode, we keep the width and truncate some heights if
+            // the faces are not within the center rect
+            let expectedHeight = size.width * (fillSize.height / fillSize.width)
+            let expectedTop = (size.height - expectedHeight) / 2.0
+            if faceRect.origin.y < expectedTop {
+                rect = CGRect(x: 0, y: faceRect.origin.y, width: size.width, height: expectedHeight)
+            } else if (faceRect.origin.y + faceRect.size.height > expectedHeight + expectedTop) &&
+                (faceRect.size.height < expectedHeight) {
+                rect = CGRect(x: 0, y: faceRect.origin.y + faceRect.size.height - expectedHeight, width: size.width, height: expectedHeight)
             }
 
-            if (yOffset + size.height/yRatio) > self.size.height {
-                yOffset = self.size.height - size.height/yRatio
-            }
-
-            rect.origin.x = (rect.origin.x) - xOffset * xRatio
-            rect.origin.y = (rect.origin.y) - yOffset * yRatio
         } else {
-
-            if size.width/aspect >= size.height {
-                rect.size = CGSize(width: size.width, height: size.width/aspect)
-
-                xRatio = (rect.size.width) / self.size.width
-                yRatio = (rect.size.height) / self.size.height
-
-                let x = (self.size.width - size.width)/2
-                let y = (self.size.height - size.height)/2
-
-                //Change coordinate system for centered image
-                var imageRect = CGRect(x: x, y: y, width: size.width, height: size.height)
-                imageRect.origin.y = self.size.height - imageRect.origin.y - imageRect.size.height
-
-                var xOffset: CGFloat = max(imageRect.origin.x + imageRect.size.width/2 - size.width/(xRatio*2), 0)
-                var yOffset: CGFloat = max(imageRect.origin.y + imageRect.size.height/2 - size.height/(yRatio*2), 0)
-
-                if (xOffset + size.width/xRatio) > self.size.width {
-                    xOffset = self.size.width - size.width/xRatio
-                }
-
-                if (yOffset + size.height/yRatio) > self.size.height {
-                    yOffset = self.size.height - size.height/yRatio
-                }
-
-                rect.origin.x = (rect.origin.x) - xOffset * xRatio
-                rect.origin.y = (rect.origin.y) - yOffset * yRatio
+            let expectedWidth = size.height * (fillSize.width / fillSize.height)
+            let expectedLeft = (size.width - expectedWidth)  / 2.0
+            if faceRect.origin.x < expectedLeft {
+                rect = CGRect(x: faceRect.origin.x, y: 0, width: expectedWidth, height: size.height)
+            } else if faceRect.origin.x + faceRect.size.height > expectedWidth + expectedLeft {
+                rect = CGRect(x: faceRect.origin.x + faceRect.size.height - expectedWidth, y: 0, width: expectedWidth, height: size.height)
             }
         }
 
-        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
-        self.draw(in: rect)
-        let image: UIImage = UIGraphicsGetImageFromCurrentImageContext()!
-        UIGraphicsEndImageContext()
-        
-        return image;
+        if rect.size.width > 0 {
+            return UIImage(cgImage: self.cgImage!.cropping(to: rect)!)
+        }
+
+        return self
+    }
+
+    fileprivate func rectForAllFaces(_ faceRects: Array<CGRect>)-> CGRect {
+        var left: CGFloat = 100000000
+        var right: CGFloat = 0
+        var bottom: CGFloat = 0
+        var top: CGFloat = 100000000
+        var topFaceHeight: CGFloat = 0
+
+        for rect in faceRects {
+            if left > rect.origin.x {
+                left = rect.origin.x
+            }
+            if top > rect.origin.y {
+                top = rect.origin.y
+                topFaceHeight = rect.size.height
+            }
+            if bottom < rect.origin.y + rect.size.height {
+                bottom = rect.origin.y + rect.size.height
+            }
+            if right < rect.origin.x + rect.size.width {
+                right = rect.origin.x + rect.size.width
+            }
+
+        }
+
+        let extraSpaceAboveHead = topFaceHeight * 0.25 // most people's hair is about 25% of the face
+        top -= extraSpaceAboveHead
+        if top < 0 {
+            top = 0
+        }
+
+        return CGRect(x: left, y: top, width: right - left, height: bottom - top)
+
     }
 }
 
