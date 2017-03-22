@@ -1025,13 +1025,13 @@ extension UIImage {
         var rect: CGRect = CGRect.zero
 
         if abs(size.height / size.width - fillSize.height / fillSize.width) < 0.05 {
-            return self
+            return cropToFillSize(fillSize).resizeTo(fillSize)
         }
 
         let faceRects = self.detectFaceRects()
 
         if faceRects.count < 0 {
-            return self
+            return cropToFillSize(fillSize).resizeTo(fillSize)
         }
 
         var faceRect = rectForAllFaces(faceRects)
@@ -1059,10 +1059,37 @@ extension UIImage {
         }
 
         if rect.size.width > 0 {
-            return UIImage(cgImage: self.cgImage!.cropping(to: rect)!)
+            return UIImage(cgImage: self.cgImage!.cropping(to: rect)!).resizeTo(fillSize)
         }
 
-        return self
+        return cropToFillSize(fillSize).resizeTo(fillSize)
+    }
+
+    fileprivate func cropToFillSize(_ fillSize: CGSize) -> UIImage {
+        if size.height / size.width > fillSize.height / fillSize.width {
+            // portrait mode, we keep the width and truncate some heights if
+            // the faces are not within the center rect
+            let expectedHeight = size.width * (fillSize.height / fillSize.width)
+            let expectedTop = (size.height - expectedHeight) / 2.0
+
+            let rect = CGRect(x: 0, y: expectedTop, width: size.width, height: expectedHeight)
+            return UIImage(cgImage: self.cgImage!.cropping(to: rect)!)
+
+        } else {
+            let expectedWidth = size.height * (fillSize.width / fillSize.height)
+            let expectedLeft = (size.width - expectedWidth)  / 2.0
+
+            let rect = CGRect(x: expectedLeft, y: 0, width: expectedWidth, height: size.height)
+            return UIImage(cgImage: self.cgImage!.cropping(to: rect)!)
+        }
+    }
+
+    fileprivate func resizeTo(_ fillSize: CGSize)-> UIImage {
+        UIGraphicsBeginImageContextWithOptions(fillSize, false, 0.0);
+        draw(in: CGRect(origin: CGPoint.zero, size: CGSize(width: fillSize.width, height: fillSize.height)))
+        let newImage:UIImage = UIGraphicsGetImageFromCurrentImageContext()!
+        UIGraphicsEndImageContext()
+        return newImage
     }
 
     fileprivate func rectForAllFaces(_ faceRects: Array<CGRect>)-> CGRect {
