@@ -1030,11 +1030,15 @@ extension UIImage {
 
         let faceRects = self.detectFaceRects()
 
-        if faceRects.count < 0 {
+        if faceRects.count < 1 {
             return cropToFillSize(fillSize).resizeTo(fillSize)
         }
 
         var faceRect = rectForAllFaces(faceRects)
+        faceRect.origin.y = size.height - faceRect.origin.y - faceRect.size.height
+        if faceRect.origin.y < 0 {
+            faceRect.origin.y = 0
+        }
 
         if size.height / size.width > fillSize.height / fillSize.width {
             // portrait mode, we keep the width and truncate some heights if
@@ -1105,10 +1109,10 @@ extension UIImage {
             }
             if top > rect.origin.y {
                 top = rect.origin.y
-                topFaceHeight = rect.size.height
             }
             if bottom < rect.origin.y + rect.size.height {
                 bottom = rect.origin.y + rect.size.height
+                topFaceHeight = rect.size.height
             }
             if right < rect.origin.x + rect.size.width {
                 right = rect.origin.x + rect.size.width
@@ -1116,11 +1120,8 @@ extension UIImage {
 
         }
 
-        let extraSpaceAboveHead = topFaceHeight * 0.25 // most people's hair is about 25% of the face
-        top -= extraSpaceAboveHead
-        if top < 0 {
-            top = 0
-        }
+        let extraSpaceAboveHead = topFaceHeight * 0.4 // most people's hair is about 25% of the face
+        bottom += extraSpaceAboveHead
 
         return CGRect(x: left, y: top, width: right - left, height: bottom - top)
 
