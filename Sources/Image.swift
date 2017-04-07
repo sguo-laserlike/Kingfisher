@@ -996,9 +996,14 @@ public struct FaceDetection: ImageProcessor {
         switch item {
         case .image(let image):
             return image
+            
         case .data(let data):
             if data.kf.imageFormat == .GIF {
-                return Kingfisher<Image>.image(data: data, scale: 1.0, preloadAllGIFData: true)
+                return Kingfisher<Image>.image(
+                    data: data,
+                    scale: options.scaleFactor,
+                    preloadAllGIFData: options.preloadAllGIFData,
+                    onlyFirstFrame: options.onlyLoadFirstFrame)
             } else {
                 return Image(data: data)?.faceDetectionImageScaledToFillSize(targetSize)
             }
